@@ -52,6 +52,7 @@ public:
 	void notifyFinished(int id);
 	void notifyStart(int id);
 	bool tasksFinished();
+	bool threadsFinished();
 	bool mainThreadReady();
 	static void threadUpdateCallback(FractalClock* clock, int id);
 	static bool taskFinishedStatic( FractalClock* clock );

@@ -180,7 +180,7 @@ void FractalClock::updateThreaded()
 		}
 		
 		std::unique_lock<std::mutex> lock( m_blocker );
-		m_cvMainThread.wait( lock, [&] {return tasksFinished(); } );
+		m_cvMainThread.wait( lock, [&] {return threadsFinished() && tasksFinished(); } );
 	}
 }
 
@@ -220,7 +220,7 @@ void FractalClock::updateBuffers()
 	
 	std::unique_lock<std::mutex> lock( m_blocker );
 	m_cv.notify_all();
-	m_cvMainThread.wait( lock, [&] {return tasksFinished(); } );
+	m_cvMainThread.wait( lock, [&] {return threadsFinished() && tasksFinished(); } );
 
 	/*for ( int i = 0; i < m_threadVertices.size(); i++ )
 	{
@@ -438,7 +438,14 @@ void FractalClock::threadDrawCallback
 
 bool FractalClock::tasksFinished()
 {
-	m_mtx.lock();/*
+	m_mtx.lock();
+	bool taskFinished = m_subTreesStack.empty() && m_bufferDataStack.empty() && m_open;
+	m_mtx.unlock();
+	return taskFinished;
+}
+
+bool FractalClock::threadsFinished()
+{
 	bool threadsReady = true;
 	for ( int i = 0; i < m_threadFlags.size(); i++ )
 	{
@@ -447,11 +454,9 @@ bool FractalClock::tasksFinished()
 			threadsReady = false;
 			break;
 		}
-	}*/
+	}
 
-	bool taskFinished = m_subTreesStack.empty() && m_bufferDataStack.empty() && m_open;
-	m_mtx.unlock();
-	return taskFinished;
+	return threadsReady;
 }
 
 bool FractalClock::mainThreadReady()
