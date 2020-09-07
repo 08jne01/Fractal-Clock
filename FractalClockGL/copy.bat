@@ -1,0 +1,1 @@
+xcopy "%1/Resources" "%2/Resources" /E/I/Y
