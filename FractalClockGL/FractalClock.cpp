@@ -27,9 +27,6 @@ FractalClock::~FractalClock()
 	delete[] m_verticesArray;
 	m_verticesArray = NULL;
 
-	delete[] m_indicesArray;
-	m_indicesArray = NULL;
-
 	m_open = false;
 	m_cv.notify_all();
 	for ( int i = 0; i < m_threads.size(); i++ )
@@ -55,10 +52,10 @@ void FractalClock::clearClock()
 
 void FractalClock::generateClock( int level, float size, bool threaded )
 {
-	if ( m_ready != m_threads.size() && threaded )
+	if ( ! threadsFinished() || ! tasksFinished() )
 	{
 		std::unique_lock<std::mutex> lock( m_blocker );
-		m_cvMainThread.wait( lock, [&] {return tasksFinished(); } );
+		m_cvMainThread.wait( lock, [&] {return tasksFinished() && threadsFinished(); } );
 	}
 
 	printf( "Generate Clock Level: %d\n", level );
@@ -69,7 +66,7 @@ void FractalClock::generateClock( int level, float size, bool threaded )
 	m_mtx.lock();
 
 	m_level = level;
-	m_root = new SubClock( 0, size, ROOT, NULL, m_position, m_clock );
+	m_root = new SubClock( 0, size, NULL, m_position, m_clock );
 	m_clocks.push_back( m_root );
 
 	m_stack.clear();
@@ -83,9 +80,9 @@ void FractalClock::generateClock( int level, float size, bool threaded )
 		{
 			
 
-			clock->setChildHour( new SubClock( clock->getLevel() + 1, size, HOUR, clock, clock->hourPosition(), m_clock ) );
-			clock->setChildMinute( new SubClock( clock->getLevel() + 1, size, MINUTE, clock, clock->minutePosition(), m_clock ) );
-			clock->setChildSecond( new SubClock( clock->getLevel() + 1, size, SECOND, clock, clock->secondPosition(), m_clock ) );
+			clock->setChildHour( new SubClock( clock->getLevel() + 1, size, clock, clock->hourPosition(), m_clock ) );
+			clock->setChildMinute( new SubClock( clock->getLevel() + 1, size, clock, clock->minutePosition(), m_clock ) );
+			clock->setChildSecond( new SubClock( clock->getLevel() + 1, size, clock, clock->secondPosition(), m_clock ) );
 
 			m_stack.push_back( clock->childHour() );
 			m_clocks.push_back( m_stack.back() );
@@ -96,11 +93,8 @@ void FractalClock::generateClock( int level, float size, bool threaded )
 		}
 	}
 
-	delete[] m_indicesArray;
 	delete[] m_verticesArray;
-
-	m_indicesArray = (unsigned int*)malloc( sizeof( unsigned int ) * m_clocks.size() * 6 );
-	m_verticesArray = (vertex_t*)malloc( sizeof( vertex_t ) * m_clocks.size() * 4 );
+	m_verticesArray = (clock_vertex_t*)malloc( sizeof( clock_vertex_t ) * m_clocks.size());
 
 	m_stack.clear();
 	m_mtx.unlock();
@@ -186,10 +180,6 @@ void FractalClock::updateThreaded()
 
 void FractalClock::updateBuffers()
 {
-	m_indices.resize( 0 );
-	m_vertices.resize( 0 );
-	m_vertices.reserve( m_clocks.size() * 4 );
-	m_indices.reserve( m_clocks.size() * 6 );
 	int numThreads = m_threads.size();
 
 	int size = m_clocks.size();
@@ -198,22 +188,12 @@ void FractalClock::updateBuffers()
 		size--;
 	}
 
-	m_threadVertices.resize( 0 );
-	m_threadIndices.resize( 0 );
-	for ( int i = 0; i < numThreads; i++ )
-	{
-		m_threadVertices.emplace_back();
-		m_threadIndices.emplace_back();
-	}
-
 
 	for ( int i = 0; i < numThreads; i++ )
 	{
 		int start = (size * i) / numThreads;
 		int end = (size * (i + 1)) / numThreads ;
-		std::vector<vertex_t>* vert = &m_threadVertices[i];
-		std::vector<unsigned int>* ind = &m_threadIndices[i];
-		m_bufferDataStack.emplace_back(vert, ind, start, end);
+		m_bufferDataStack.emplace_back(start, end);
 	}
 
 	m_bufferDataStack.back().end = m_clocks.size();
@@ -222,22 +202,13 @@ void FractalClock::updateBuffers()
 	m_cv.notify_all();
 	m_cvMainThread.wait( lock, [&] {return threadsFinished() && tasksFinished(); } );
 
-	/*for ( int i = 0; i < m_threadVertices.size(); i++ )
-	{
-		m_vertices.insert( m_vertices.end(), m_threadVertices[i].begin(), m_threadVertices[i].end() );
-		m_indices.insert( m_indices.end(), m_threadIndices[i].begin(), m_threadIndices[i].end() );
-	}*/
-
 	glBindVertexArray( VAO() );
 	glBindBuffer( GL_ARRAY_BUFFER, VBO() );
-	glBufferData( GL_ARRAY_BUFFER, 4*m_clocks.size() * sizeof(vertex_t), m_verticesArray, GL_STATIC_DRAW );
+	glBufferData( GL_ARRAY_BUFFER, m_clocks.size() * sizeof(clock_vertex_t), m_verticesArray, GL_STATIC_DRAW );
 
-	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, EBO() );
-	glBufferData( GL_ELEMENT_ARRAY_BUFFER, 6*m_clocks.size() * sizeof( unsigned int ), m_indicesArray, GL_STATIC_DRAW );
-
-	glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, sizeof( vertex_t ), (void*)0 );
+	glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)0 );
 	glEnableVertexAttribArray( 0 );
-	glVertexAttribPointer( 1, 4, GL_FLOAT, GL_FALSE, sizeof( vertex_t ), (void*)offsetof(vertex_t, r) );
+	glVertexAttribPointer( 1, 4, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)offsetof( clock_vertex_t, m_r) );
 	glEnableVertexAttribArray( 1 );
 
 	glBindBuffer( GL_ARRAY_BUFFER, 0 );
@@ -249,7 +220,7 @@ void FractalClock::draw( unsigned int shaderProgram )
 	m_mtx.lock();
 	glUseProgram( shaderProgram );
 	glBindVertexArray( VAO() );
-	glDrawElements( GL_LINES, 6 * m_clocks.size(), GL_UNSIGNED_INT, 0 );
+	glDrawArrays( GL_POINTS, 0, m_clocks.size() );
 	glBindVertexArray( 0 );
 	m_mtx.unlock();
 }
@@ -286,10 +257,10 @@ void FractalClock::threadMain(int id)
 		std::unique_lock<std::mutex> lock( m_blocker );
 		//if ( tasksFinished() )
 		//{
-			notifyFinished(id);
-			m_cv.wait( lock, [&] {return ! tasksFinished(); } );
+		notifyFinished(id);
+		m_cv.wait( lock, [&] {return ! tasksFinished(); } );
 			//std::cout << "Thread Start" << std::endl;
-			notifyStart(id);
+		notifyStart(id);
 		//}
 		
 
@@ -315,14 +286,13 @@ void FractalClock::threadMain(int id)
 
 		if ( bufferData )
 		{
-			//threadDraw( data.start, data.end, data.vertices, data.indices );
 			threadDrawArray( data.start, data.end );
 		}
 	}
 	notifyFinished(id);
 }
 
-void FractalClock::threadUpdateCallback( FractalClock* clock, int id )
+void FractalClock::threadMainCallback( FractalClock* clock, int id )
 {
 	clock->threadMain(id);
 }
@@ -334,15 +304,13 @@ void FractalClock::launchThreads()
 	for ( int i = 0; i < numThreads; i++ )
 	{
 		m_threadFlags.push_back( false );
-		m_threads.push_back( std::thread( &FractalClock::threadUpdateCallback, this, i ) );
+		m_threads.push_back( std::thread( &FractalClock::threadMainCallback, this, i ) );
 	}
 }
 
 void FractalClock::notifyStart(int id)
 {
 	m_mtx.lock();
-	m_ready--;
-	m_ready = std::max( std::min( m_ready, (int)m_threads.size() ), 0 );
 	m_threadFlags[id] = false;
 	m_mtx.unlock();
 }
@@ -352,48 +320,12 @@ void FractalClock::notifyFinished(int id)
 	m_mtx.lock();
 
 	m_threadFlags[id] = true;
-	m_ready++;
-	m_ready = std::max( std::min( m_ready, (int)m_threads.size() ), 0 );
 	m_cvMainThread.notify_all();
 	m_mtx.unlock();
 }
 
-void FractalClock::threadDraw
-( 
-	int start,
-	int end,
-	std::vector<vertex_t>* vertices,
-	std::vector<unsigned int>* indices
-)
-{
-	vertices->reserve( (end - start)*4 );
-	indices->reserve( (end - start)*6 );
-
-	for ( int i = start; i < end; i++ )
-	{
-		float frac = ((float)m_clocks[i]->getLevel() + 1.0f) / ((float)m_level + 1.0f);
-		float r = powf( cosf( -m_clock->minute() + PI ), 2 ) * frac;
-		float g = frac * powf( sinf( m_clock->minute() + m_clock->hour() - frac * PI ), 2 );
-		float b = powf( sinf( m_clock->minute() - PI ), 2 );
-
-		vertices->emplace_back( m_clocks[i]->position(), r, g, b, 1.0f );
-		vertices->emplace_back( m_clocks[i]->hourPosition(), r, g, b, 1.0f );
-		vertices->emplace_back( m_clocks[i]->minutePosition(), r, g, b, 1.0f );
-		vertices->emplace_back( m_clocks[i]->secondPosition(), r, g, b, 1.0f );
-
-		indices->push_back( 4 * i );
-		indices->push_back( 4 * i + 1 );
-		indices->push_back( 4 * i );
-		indices->push_back( 4 * i + 2 );
-		indices->push_back( 4 * i );
-		indices->push_back( 4 * i + 3 );
-	}
-
-}
-
 void FractalClock::threadDrawArray( int start, int end )
 {
-	//std::cout << "start " << start << std::endl;
 	for ( int i = start; i < end; i++ )
 	{
 		float frac = ((float)m_clocks[i]->getLevel() + 1.0f) / ((float)m_level + 1.0f);
@@ -401,39 +333,9 @@ void FractalClock::threadDrawArray( int start, int end )
 		float g = frac * powf( sinf( m_clock->minute() + m_clock->hour() - frac * PI ), 2 );
 		float b = powf( sinf( 1.0 * m_clock->minute() - PI ), 2 );
 
-		int vertexIndex = i * 4;
-		int indexIndex = i * 6;
-
-		m_verticesArray[vertexIndex] = vertex_t( m_clocks[i]->position(), r, g, b, (m_lineWidth /frac) );
-		m_verticesArray[vertexIndex + 1] = vertex_t( m_clocks[i]->hourPosition(), r, g, b, (m_lineWidth / frac) );
-		m_verticesArray[vertexIndex + 2] = vertex_t( m_clocks[i]->minutePosition(), r, g, b, (m_lineWidth / frac) );
-		m_verticesArray[vertexIndex + 3] = vertex_t( m_clocks[i]->secondPosition(), r, g, b, (m_lineWidth / frac) );
-
-		m_indicesArray[indexIndex] = vertexIndex;
-		m_indicesArray[indexIndex + 2] = vertexIndex;
-		m_indicesArray[indexIndex + 4] = vertexIndex;
-
-		m_indicesArray[indexIndex + 1] = vertexIndex + 1;
-		m_indicesArray[indexIndex + 3] = vertexIndex + 2;
-		m_indicesArray[indexIndex + 5] = vertexIndex + 3;
-
-		assert( indexIndex + 5 < m_clocks.size() * 6 );
-		assert( vertexIndex + 3 < m_clocks.size() * 4 );
+		float width = m_lineWidth / frac;
+		m_verticesArray[i] = clock_vertex_t( m_clocks[i]->position().x, m_clocks[i]->position().y, m_clocks[i]->rotation(), m_clocks[i]->getSize(), r, g, b, width );
 	}
-	//std::cout << "end " << start << std::endl;
-}
-
-void FractalClock::threadDrawCallback
-(
-	FractalClock* clock,
-	int start,
-	int end,
-	std::vector<vertex_t>* vertices,
-	std::vector<unsigned int>* indices 
-)
-{
-	//clock->threadDraw( start, end, vertices, indices );
-	clock->threadDrawArray( start, end );
 }
 
 bool FractalClock::tasksFinished()
@@ -457,9 +359,4 @@ bool FractalClock::threadsFinished()
 	}
 
 	return threadsReady;
-}
-
-bool FractalClock::mainThreadReady()
-{
-	return false;
 }

@@ -3,21 +3,12 @@
 #include <stdlib.h>
 #include "Clock.h"
 
-
-enum Type
-{
-	HOUR,
-	MINUTE,
-	SECOND,
-	ROOT
-};
-
 class SubClock
 {
 public:
 
 
-	SubClock( int level, float size, Type type, SubClock* parent, const Vec2f& position, Clock* realClock );
+	SubClock( int level, float size, SubClock* parent, const Vec2f& position, Clock* realClock );
 	void update();
 
 	inline void setRotation(float rotation)
@@ -96,20 +87,23 @@ public:
 	}
 
 private:
+	//Geometry about SubClock.
 	const Vec2f& m_position;
 	Vec2f m_hourPosition;
 	Vec2f m_minutePosition;
 	Vec2f m_secondPosition;
 
-
+	//Config Values.
 	float m_rotation = 0.0;
 	float m_size;
 	int m_level;
-	const Type m_type;
 
+	//References to others in the tree.
 	SubClock* m_parent = NULL;
 	SubClock* m_hour = NULL;
 	SubClock* m_minute = NULL;
 	SubClock* m_second = NULL;
+
+	//Actual time angles.
 	Clock* m_realClock;
 };

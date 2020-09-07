@@ -2,8 +2,6 @@
 #include "Shader.h"
 #include "glad/glad.h"
 #include "glfw3.h"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include "InternalShader.h"
 Program::Program
 (
@@ -26,9 +24,6 @@ Program::~Program()
 
 int Program::mainLoop()
 {
-	//sf::ContextSettings settings;
-	//settings.antialiasingLevel = 8;
-	//m_window.create( sf::VideoMode( m_width, m_height ), "Fractal Clock", sf::Style::Default, settings);
 	if ( ! glfwInit() )
 	{
 		fprintf( stderr, "GLFW did not init.\n" );
@@ -119,18 +114,9 @@ int Program::mainLoop()
 	
 	m_fractal.createBuffers();
 
-	glm::mat4 projectionMat = glm::ortho( -m_width / 2, m_width / 2, -m_height / 2, m_height / 2, -1, 1 );
-
-	//glm::mat4 model = glm::translate(glm::mat4(1.0), glm::vec3(0,0,0));
-	//glm::mat4 view = glm::translate(glm::mat4(1.0), glm::vec3(0,0,-1));
-
-	//projectionMat = projectionMat * view * model;
-	//projectionMat = glm::mat4( 1.0 );
 	//Mainloop
 	while ( ! glfwWindowShouldClose( m_window ) )
 	{
-		//int proj = glGetUniformLocation( shaderProgram, "proj" );
-		//glUniformMatrix4fv( proj, 1, GL_FALSE, &projectionMat[0][0] );
 
 		int width = glGetUniformLocation( shaderProgram, "width" );
 		glUniform1f( width, m_width );
@@ -138,6 +124,8 @@ int Program::mainLoop()
 		int height = glGetUniformLocation( shaderProgram, "height" );
 		glUniform1f( height, m_height );
 
+		int timeVector = glGetUniformLocation( shaderProgram, "timeAngle" );
+		glUniform3f( timeVector, m_clock.hour(), m_clock.minute(), m_clock.second() );
 
 		update();
 		draw( shaderProgram );
@@ -149,19 +137,6 @@ int Program::mainLoop()
 
 	return 0;
 }
-
-//void Program::handleEvent( const sf::Event& e )
-//{
-//	switch ( e.type )
-//	{
-//	case sf::Event::EventType::Closed:
-//		m_window.close();
-//		break;
-//	case sf::Event::EventType::KeyPressed:
-//		handleKeyboardEvent( e );
-//		break;
-//	}
-//}
 
 void Program::handleKeyboardEvent( int button, int scancode, int action, int mods )
 {

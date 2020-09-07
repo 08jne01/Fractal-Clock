@@ -1,11 +1,15 @@
 #version 460 core
-layout( lines ) in;
-layout( triangle_strip, max_vertices = 4 ) out;
-
+layout( points ) in;
+layout( triangle_strip, max_vertices = 12 ) out;
+//triangle_strip 12
+in float v_size[];
 in float v_width[];
-in float v_ratio[];
+in float v_rotation[];
 in vec4 v_vertexColor[];
 out vec4 g_vertexColor;
+
+uniform vec3 timeAngle; //x: hour y: minute z: second
+
 
 uniform float width;
 uniform float height;
@@ -30,60 +34,70 @@ mat4 getProjMatrix()
 	ret[1] = vec4( 0.0, 500.0/tmb, 0.0, 0.0 );
 	ret[2] = vec4( 0.0, 0.0, 1.0, 0.0 );
 	ret[3] = vec4( 0.0, 0.0, 0.0, 1.0 );
-	//ret[1] = vec4( 0.0, 2.0 / tmb, 0.0, 0.0 );
-	//ret[2] = vec4( 0.0, 0.0, -1.0, 0.0 );
-	//ret[3] = vec4( -ral / rml, -tab / tmb, 1.0, 1.0 );
 
 	return ret;
 }
 
-void main()
+vec2 rotate( vec2 v, float a )
 {
-	vec2 diff = gl_in[1].gl_Position.xy - gl_in[0].gl_Position.xy;
+	float s = sin( a );
+	float c = cos( a );
+	mat2 m = mat2( c, s, -s, c );
+	return m * v;
+}
+
+void emitRectangleFromLine( vec2 v )
+{
+	vec2 diff = v - gl_in[0].gl_Position.xy;
 	float angle = atan(  diff.y, diff.x );
 	float x = sin( angle ) / 2.0f;
 	float y = cos( angle ) / 2.0f;
 
-	float xcn = cos( angle + 1.0471975512 );
-	float ycn = cos( angle + 1.0471975512 );
+	float xW = x * v_width[0];
+	float yW = y * v_width[0];
 
-	float xW0 = x * v_width[0];
-	float yW0 = y * v_width[0];
-	float xW1 = x * v_width[1];
-	float yW1 = y * v_width[1];
-
-	float xcn0 = xcn * v_width[0];
-	float ycn0 = ycn * v_width[0];
-	float xcn1 = xcn * v_width[1];
-	float ycn1 = ycn * v_width[1];
-
-	//Root Side
 	g_vertexColor = v_vertexColor[0];
 
-	//gl_Position = gl_in[0].gl_Position + vec4( -xcn0, ycn0, 0.0, 0.0 );
-	//EmitVertex();
+	//Root Side
 
-	//gl_Position = gl_in[0].gl_Position + vec4( xcn0, -ycn0, 0.0, 0.0 );
-	//EmitVertex();
-
-	gl_Position = gl_in[0].gl_Position + vec4( xW0, -yW0, 0.0, 0.0 );
+	gl_Position = gl_in[0].gl_Position + vec4( xW, -yW, 0.0, 0.0 );
 	gl_Position = getProjMatrix() * gl_Position;
 	EmitVertex();
 
-	gl_Position = gl_in[0].gl_Position + vec4( -xW0, yW0, 0.0, 0.0 );
+	gl_Position = gl_in[0].gl_Position + vec4( -xW, yW, 0.0, 0.0 );
 	gl_Position = getProjMatrix() * gl_Position;
 	EmitVertex();
 
 	//Leaf Side
-	g_vertexColor = v_vertexColor[1];
 
-	gl_Position = gl_in[1].gl_Position + vec4( xW1, -yW1, 0.0, 0.0 );
+	gl_Position = vec4( v, gl_in[0].gl_Position.zw ) + vec4( xW, -yW, 0.0, 0.0 );
 	gl_Position = getProjMatrix() * gl_Position;
 	EmitVertex();
 
-	gl_Position = gl_in[1].gl_Position + vec4( -xW1, yW1, 0.0, 0.0 );
+	gl_Position = vec4( v, gl_in[0].gl_Position.zw ) + vec4( -xW, yW, 0.0, 0.0 );
 	gl_Position = getProjMatrix() * gl_Position;
 	EmitVertex();
 
 	EndPrimitive();
+}
+
+void main()
+{
+	vec3 finalRotations = timeAngle + v_rotation[0];
+
+	vec2 hour = vec2( 0, -v_size[0]*0.4 );
+	vec2 minute = vec2( 0, -v_size[0]*0.8 );
+	vec2 second = vec2( 0, -v_size[0] );
+
+	hour = rotate( hour, finalRotations.x );
+	minute = rotate( minute, finalRotations.y );
+	second = rotate( second, finalRotations.z );
+
+	hour += gl_in[0].gl_Position.xy;
+	minute += gl_in[0].gl_Position.xy;
+	second += gl_in[0].gl_Position.xy;
+
+	emitRectangleFromLine( hour );
+	emitRectangleFromLine( minute );
+	emitRectangleFromLine( second );
 }
