@@ -69,6 +69,8 @@ void FractalClock::generateClock( int level, float size, bool threaded )
 	m_root = new SubClock( 0, size, NULL, m_position, m_clock );
 	m_clocks.push_back( m_root );
 
+	
+
 	m_stack.clear();
 	m_stack.push_back( m_root );
 	while ( ! m_stack.empty() )
@@ -204,11 +206,11 @@ void FractalClock::updateBuffers()
 
 	glBindVertexArray( VAO() );
 	glBindBuffer( GL_ARRAY_BUFFER, VBO() );
-	glBufferData( GL_ARRAY_BUFFER, m_clocks.size() * sizeof(clock_vertex_t), m_verticesArray, GL_STATIC_DRAW );
+	glBufferData( GL_ARRAY_BUFFER, m_clocks.size() * sizeof( clock_vertex_t ), m_verticesArray, GL_STATIC_DRAW );
 
-	glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)0 );
+	glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)0 );
 	glEnableVertexAttribArray( 0 );
-	glVertexAttribPointer( 1, 4, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)offsetof( clock_vertex_t, m_r) );
+	glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, sizeof( clock_vertex_t ), (void*)offsetof( clock_vertex_t, m_size) );
 	glEnableVertexAttribArray( 1 );
 
 	glBindBuffer( GL_ARRAY_BUFFER, 0 );
@@ -231,20 +233,29 @@ void FractalClock::updateSubTree(SubClock* root)
 		return;
 
 	std::vector<SubClock*> stack;
-	stack.push_back( root );
+	int divsor = m_threads.size() == 0 ? 1 : m_threads.size();
+	stack.resize( 1 + m_clocks.size() / divsor );
+	int stackPointer = 0;
+	//stack.push_back( root );
+	stack[++stackPointer] = root;
 
-	while ( ! stack.empty() )
+	while ( stackPointer != 0 )
 	{
-		SubClock* clock = stack.back();
-		stack.pop_back();
+		SubClock* clock = stack[stackPointer];//stack.back();
+		stackPointer--;
+		//stack.pop_back();
 
 		clock->update();
 
 		if ( clock->childHour() )
 		{
-			stack.push_back( clock->childHour() );
-			stack.push_back( clock->childMinute() );
-			stack.push_back( clock->childSecond() );
+			//stack.push_back( clock->childHour() );
+			//stack.push_back( clock->childMinute() );
+			//stack.push_back( clock->childSecond() );
+
+			stack[++stackPointer] = clock->childHour();
+			stack[++stackPointer] = clock->childMinute();
+			stack[++stackPointer] = clock->childSecond();
 		}
 	}
 }
@@ -326,15 +337,21 @@ void FractalClock::notifyFinished(int id)
 
 void FractalClock::threadDrawArray( int start, int end )
 {
+	//float rComp = powf( cosf( -3.0 * m_clock->minute() + PI * 0.75 ), 2 );
+	//float gComp = powf( sinf( m_clock->minute() + m_clock->hour() - PI), 2) ;
+	//float gComp = m_clock->minute() + m_clock->hour();
+	//float bComp = powf( sinf( 1.0 * m_clock->minute() - PI ), 2 );
+
 	for ( int i = start; i < end; i++ )
 	{
 		float frac = ((float)m_clocks[i]->getLevel() + 1.0f) / ((float)m_level + 1.0f);
-		float r = powf( cosf( -3.0*m_clock->minute() + PI*0.75 ), 2 ) * frac;
-		float g = frac * powf( sinf( m_clock->minute() + m_clock->hour() - frac * PI ), 2 );
-		float b = powf( sinf( 1.0 * m_clock->minute() - PI ), 2 );
+		//float r = rComp * frac;
+		//float g = frac * powf( sinf( gComp  - frac * PI ), 2 );
+		//float g = frac * gComp;
+		//float b = bComp;
 
 		float width = m_lineWidth / frac;
-		m_verticesArray[i] = clock_vertex_t( m_clocks[i]->position().x, m_clocks[i]->position().y, m_clocks[i]->rotation(), m_clocks[i]->getSize(), r, g, b, width );
+		m_verticesArray[i] = clock_vertex_t( m_clocks[i]->position().x, m_clocks[i]->position().y, m_clocks[i]->rotation(), m_clocks[i]->getSize(), frac, width );
 	}
 }
 

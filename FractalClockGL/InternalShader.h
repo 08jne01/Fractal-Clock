@@ -1,22 +1,63 @@
 #define VERTEX_SHADER_TEXT "\
 #version 460 core\n\
-layout( location = 0 ) in vec4 vertexPositions;\n\
-layout( location = 1 ) in vec4 vertexColor;\n\
+//Input Buffer\n\
+layout( location = 0 ) in vec3 vertexPositions;\n\
+layout( location = 1 ) in vec3 clockSettings;\n\
+//clockSettings\n\
+//x: size (length of the hands second hand )\n\
+//y: frac (level of the clock + 1) / (maximum number of levels + 1) this is 0 -> 1\n\
+// Levels increase as clock gets smaller.\n\
+//z: line width\n\
 \n\
+//sin(x)\n\
+//cos(x)\n\
+//pow(x,y) -> x^y\n\
+\n\
+\n\
+#define PI 3.14159265358979\n\
+\n\
+//Output\n\
 out float v_size;\n\
 out float v_width;\n\
 out float v_rotation;\n\
 out vec4 v_vertexColor;\n\
 \n\
+//Input time\n\
+uniform vec3 timeAngle; //hour: x, minute: y, seconds: z\n\
+\n\
+vec4 getVertexColor()\n\
+{\n\
+	vec4 color; //r, g, b, alpha\n\
+\n\
+	//Example 1\n\
+	color.x = clockSettings.y * pow( cos( -3.0 * timeAngle.y + PI * 0.75 ), 2 );\n\
+	color.y = clockSettings.y * pow( sin( timeAngle.y + timeAngle.x - clockSettings.y * PI ), 2 );\n\
+	color.z = pow( sin( 1.0 * timeAngle.y - PI ), 2 );\n\
+	color.w = pow( 1.0 - clockSettings.y, 0.5 );\n\
+\n\
+	//make sure all components of color\n\
+	//stay between 0 -> 1\n\
+	//0 is no color\n\
+	//1 is max color\n\
+\n\
+	//Example 2\n\
+	//color.x = timeAngle.z;\n\
+	//color.y = 0.0;\n\
+	//color.z = 0.0;\n\
+	//color.w = 1.0;\n\
+\n\
+	return color;\n\
+}\n\
+\n\
 void main()\n\
 {\n\
 	gl_Position = vec4( vertexPositions.xy, 0.0, 1.0 );\n\
 	\n\
-	v_size = vertexPositions.z;\n\
-	v_rotation = vertexPositions.w;\n\
+	v_size = clockSettings.x;\n\
+	v_rotation = vertexPositions.z;\n\
 \n\
-	v_width = vertexColor.w;\n\
-	v_vertexColor = vec4(vertexColor.xyz, 1.0);\n\
+	v_width = clockSettings.z;\n\
+	v_vertexColor = getVertexColor();\n\
 }\n\
 "
 #define GEOM_SHADER_TEXT "\
