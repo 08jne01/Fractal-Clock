@@ -1,6 +1,6 @@
 # Fractal-Clock
 
-This is a fractal clock. It simply takes a regular analogue clock then on the end's of each hands it plops a new clock but 
+It simply takes a regular analogue clock then on the end's of each hands it plops a new clock but 
 slightly smaller. This is one iteration. You can repeat this step but many times and you build some interesting fractals
 depending on what the local time is.
 
@@ -26,3 +26,10 @@ Resources/shaders/Frag.shader
 
 Examples can be found in this repository. If you would like to customise the colours of the clocks then take a look at the Vertex.shader specifically and the getVertexColor()
 function.
+
+## Controls
+| Key              | Function                               |
+|------------------|----------------------------------------|
+| Left/Right Arrow | Decrease/Increase Size of Clock        |
+| Up/Down Arrow    | Increase/Decrease number of iterations |
+| Page Up/Down     | Increase/Decrease Line Width of Clock  |
